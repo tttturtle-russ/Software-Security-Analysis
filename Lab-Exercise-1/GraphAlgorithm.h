@@ -280,6 +280,16 @@ class CGraph {
 		return nodeId;
 	}
 
+	bool edgeIn(CGEdge* edge) {
+		for (auto &&_edge : this->edges)
+		{
+			if ((_edge->getSrc()->getID() == edge->getSrc()->getID()) && 
+				(_edge->getDst()->getID() == edge->getDst()->getID()) &&
+				(_edge->getType() == edge->getType()))
+				return true;
+		}
+		return false;
+	}
  protected:
 	std::set<std::string> paths;
 	std::set<Node*> visited;

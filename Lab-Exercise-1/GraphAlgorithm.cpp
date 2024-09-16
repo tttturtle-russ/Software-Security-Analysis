@@ -26,6 +26,7 @@
  */
 
 #include "GraphAlgorithm.h"
+#include <sstream>
 
 using namespace std;
 
@@ -34,6 +35,30 @@ using namespace std;
 /// Each path should have a format like this: "START->1->2->4->5->END", where -> indicates an edge connecting two node IDs.
 void Graph::reachability(Node* src, Node* dst) {
 	/// TODO: your code starts from here
+	this->path.push_back(src->getNodeID());
+	this->visited.insert(src);
+	if (src == dst)
+	{
+		std::stringstream ss;
+		for (auto &&id : this->path)
+		{
+			ss << id;
+			ss << "->";
+		}
+		this->paths.insert("START->" + ss.str() + "END");
+		this->path.pop_back();
+		this->visited.erase(src);
+		return;
+	}
+	for (auto &&edge : src->getOutEdges())
+	{
+		auto node = edge->getDst();
+		if (this->visited.find(node) == this->visited.end()){
+			this->reachability(node, dst);
+		}
+	}
+	this->path.pop_back();
+	this->visited.erase(src);
 }
 
 /// TODO: Implement constraint solving by iteratively (1) propagating points-to sets among nodes on CGraph, and (2)
@@ -47,4 +72,54 @@ void Graph::reachability(Node* src, Node* dst) {
 /// Refer to the APIs in CGraph, including `addPts`, `getPts`, `unionPts` and `addEdge` for your implementation.
 void CGraph::solveWorklist() {
 	/// TODO: your code starts from here
+	for (auto &&edge : this->edges)
+	{
+		this->pushIntoWorklist(edge->getSrc()->getID());
+	}
+	
+	while (true)
+	{
+		if (this->worklist.empty())
+			break;
+		auto nodeId = this->popFromWorklist();
+		auto node = this->getNode(nodeId);
+		auto outEdges = node->getOutEdges();
+		for (auto &&edge : outEdges)
+		{
+			auto type = edge->getType();
+			auto p = edge->getDst();
+			switch (type)
+			{
+			case CGEdge::ADDR:
+				// p <--ADDR-- o   =>  pts(p) = pts(p) ∪ {o}
+				this->addPts(p, node);
+				break;
+			case CGEdge::COPY:
+				// q <--COPY-- p   =>  pts(q) = pts(q) ∪ pts(p) 
+				this->unionPts(p, node);
+				break;
+			case CGEdge::LOAD:
+				// q <--LOAD-- p   =>  for each o ∈ pts(p) : q <--COPY-- o 
+				for (auto &&id : node->getPts()){
+					if (this->addEdge(this->getNode(id), p, CGEdge::COPY)){
+						this->pushIntoWorklist(id);
+						this->pushIntoWorklist(id);
+					}
+				}
+				break;
+			case CGEdge::STORE:
+				// q <--STORE-- p  =>  for each o ∈ pts(q) : o <--COPY-- p 
+				for (auto &&id : p->getPts()){
+					// add new COPY edge to graph, push it into worklist if not exist
+					if (this->addEdge(node, this->getNode(id), CGEdge::COPY)){
+						this->pushIntoWorklist(node->getID());
+						this->pushIntoWorklist(id);
+					}
+				}
+				break;
+			default:
+				break;
+			}
+		}
+	}
 }
